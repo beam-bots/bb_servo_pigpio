@@ -15,7 +15,7 @@ defmodule BB.Servo.Pigpio.Actuator do
   1. Clamps the position to joint limits
   2. Converts to PWM pulse width
   3. Sends PWM command to pigpiox
-  4. Publishes a `BB.Servo.Pigpio.Message.PositionCommand` for sensors to consume
+  4. Publishes a `BB.Message.Actuator.BeginMotion` for sensors to consume
   """
   use GenServer
   import BB.Unit
@@ -23,8 +23,9 @@ defmodule BB.Servo.Pigpio.Actuator do
 
   alias BB.Cldr.Unit, as: CldrUnit
   alias BB.Message
+  alias BB.Message.Actuator.BeginMotion
+  alias BB.Message.Actuator.Command
   alias BB.Robot.Units
-  alias BB.Servo.Pigpio.Message.PositionCommand
 
   @options Spark.Options.new!(
              bb: [
@@ -143,10 +144,27 @@ defmodule BB.Servo.Pigpio.Actuator do
     {:ok, limits}
   end
 
-  def handle_cast({:set_position, angle}, state) when is_integer(angle),
-    do: handle_cast({:set_position, angle * 1.0}, state)
+  # Handle position commands via pubsub (from BB.Actuator.set_position/4)
+  def handle_info({:bb, _path, %Message{payload: %Command.Position{} = cmd}}, state) do
+    {:noreply, state} = do_set_position(cmd.position, cmd.command_id, state)
+    {:noreply, state}
+  end
 
-  def handle_cast({:set_position, angle}, state) do
+  # Handle position commands via direct cast (from BB.Actuator.set_position!/4)
+  def handle_cast({:command, %Message{payload: %Command.Position{} = cmd}}, state) do
+    do_set_position(cmd.position, cmd.command_id, state)
+  end
+
+  # Handle position commands via direct call (from BB.Actuator.set_position_sync/5)
+  def handle_call({:command, %Message{payload: %Command.Position{} = cmd}}, _from, state) do
+    {:noreply, new_state} = do_set_position(cmd.position, cmd.command_id, state)
+    {:reply, {:ok, :accepted}, new_state}
+  end
+
+  defp do_set_position(angle, command_id, state) when is_integer(angle),
+    do: do_set_position(angle * 1.0, command_id, state)
+
+  defp do_set_position(angle, command_id, state) do
     clamped_angle = clamp_angle(angle, state)
     new_pulse = angle_to_pulse(clamped_angle, state)
 
@@ -155,17 +173,25 @@ defmodule BB.Servo.Pigpio.Actuator do
       travel_time_ms = round(travel_distance / state.velocity_limit * 1000)
       expected_arrival = System.monotonic_time(:millisecond) + travel_time_ms
 
-      message =
-        Message.new!(PositionCommand, state.joint_name,
-          target: clamped_angle,
-          expected_arrival: expected_arrival
-        )
+      message_opts =
+        [
+          initial_position: state.current_angle,
+          target_position: clamped_angle,
+          expected_arrival: expected_arrival,
+          command_type: :position
+        ]
+        |> maybe_add_opt(:command_id, command_id)
+
+      message = Message.new!(BeginMotion, state.joint_name, message_opts)
 
       BB.publish(state.bb.robot, [:actuator | state.bb.path], message)
 
       {:noreply, %{state | current_pulse: new_pulse, current_angle: clamped_angle}}
     end
   end
+
+  defp maybe_add_opt(opts, _key, nil), do: opts
+  defp maybe_add_opt(opts, key, value), do: Keyword.put(opts, key, value)
 
   defp clamp_angle(angle, state) do
     angle

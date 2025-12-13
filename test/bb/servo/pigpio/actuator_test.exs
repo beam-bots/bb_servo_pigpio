@@ -6,10 +6,23 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  alias BB.Message
+  alias BB.Message.Actuator.Command
   alias BB.Servo.Pigpio.Actuator
 
   @joint_name :test_joint
   @actuator_name :test_servo
+
+  defp position_command(position, opts \\ []) do
+    message_opts =
+      [position: position * 1.0]
+      |> maybe_add_opt(:command_id, opts[:command_id])
+
+    {:command, Message.new!(Command.Position, @joint_name, message_opts)}
+  end
+
+  defp maybe_add_opt(opts, _key, nil), do: opts
+  defp maybe_add_opt(opts, key, value), do: Keyword.put(opts, key, value)
 
   defp default_bb_context do
     # Path is [:joint_name, :actuator_name] - joint first, actuator last
@@ -143,7 +156,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
         {:ok, 0}
       end)
 
-      Actuator.handle_cast({:set_position, -1.0}, state)
+      Actuator.handle_cast(position_command(-1.0), state)
     end
 
     test "upper limit maps to max_pulse", %{state: state} do
@@ -152,7 +165,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
         {:ok, 0}
       end)
 
-      Actuator.handle_cast({:set_position, 1.0}, state)
+      Actuator.handle_cast(position_command(1.0), state)
     end
 
     test "center maps to mid_pulse", %{state: state} do
@@ -161,7 +174,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
         {:ok, 0}
       end)
 
-      Actuator.handle_cast({:set_position, 0.0}, state)
+      Actuator.handle_cast(position_command(0.0), state)
     end
   end
 
@@ -186,7 +199,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
         {:ok, 0}
       end)
 
-      Actuator.handle_cast({:set_position, -1.0}, state)
+      Actuator.handle_cast(position_command(-1.0), state)
     end
 
     test "upper limit maps to min_pulse when reversed", %{state: state} do
@@ -195,7 +208,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
         {:ok, 0}
       end)
 
-      Actuator.handle_cast({:set_position, 1.0}, state)
+      Actuator.handle_cast(position_command(1.0), state)
     end
   end
 
@@ -220,7 +233,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
         {:ok, 0}
       end)
 
-      Actuator.handle_cast({:set_position, -5.0}, state)
+      Actuator.handle_cast(position_command(-5.0), state)
     end
 
     test "clamps position above upper limit", %{state: state} do
@@ -229,7 +242,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
         {:ok, 0}
       end)
 
-      Actuator.handle_cast({:set_position, 5.0}, state)
+      Actuator.handle_cast(position_command(5.0), state)
     end
   end
 
@@ -255,12 +268,13 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
         :ok
       end)
 
-      Actuator.handle_cast({:set_position, 0.5}, state)
+      Actuator.handle_cast(position_command(0.5), state)
 
       assert_receive {:published, TestRobot, [:actuator, @joint_name, @actuator_name], message}
 
-      assert %BB.Message{payload: %BB.Servo.Pigpio.Message.PositionCommand{} = cmd} = message
-      assert cmd.target == 0.5
+      assert %BB.Message{payload: %BB.Message.Actuator.BeginMotion{} = cmd} = message
+      assert cmd.initial_position == 0.0
+      assert cmd.target_position == 0.5
       assert is_integer(cmd.expected_arrival)
       assert cmd.expected_arrival > System.monotonic_time(:millisecond)
     end
@@ -274,7 +288,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
       end)
 
       before = System.monotonic_time(:millisecond)
-      Actuator.handle_cast({:set_position, 1.0}, state)
+      Actuator.handle_cast(position_command(1.0), state)
 
       assert_receive {:arrival, expected_arrival}
 
