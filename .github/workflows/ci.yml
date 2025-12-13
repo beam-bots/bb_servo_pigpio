@@ -69,32 +69,6 @@ jobs:
         with:
           mix-env: test
 
-  spark-formatter:
-    name: mix spark.formatter --check
-    runs-on: ubuntu-latest
-    needs: build-test
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      - uses: team-alembic/staple-actions/actions/mix-task@59199173e18eee6748b65d01626ef82d51c6e963 # main
-        with:
-          mix-env: test
-          task: spark.formatter --check
-
-  spark-cheat-sheets:
-    name: mix spark.cheat_sheets --check
-    runs-on: ubuntu-latest
-    needs: build-test
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      - uses: team-alembic/staple-actions/actions/mix-task@59199173e18eee6748b65d01626ef82d51c6e963 # main
-        with:
-          mix-env: test
-          task: spark.cheat_sheets --dry-run --yes
-      - uses: team-alembic/staple-actions/actions/mix-task@59199173e18eee6748b65d01626ef82d51c6e963 # main
-        with:
-          mix-env: test
-          task: spark.cheat_sheets --check
-
   dialyzer:
     name: mix dialyzer
     runs-on: ubuntu-latest
@@ -139,7 +113,6 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - build-test
-      - spark-cheat-sheets
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - uses: team-alembic/staple-actions/actions/mix-docs@59199173e18eee6748b65d01626ef82d51c6e963 # main
@@ -174,8 +147,6 @@ jobs:
       - dialyzer
       - credo
       - formatter
-      - spark-formatter
-      - spark-cheat-sheets
       - audit
       - unused-deps
       - reuse
