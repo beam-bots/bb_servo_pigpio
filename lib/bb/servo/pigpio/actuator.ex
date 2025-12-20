@@ -23,8 +23,7 @@ defmodule BB.Servo.Pigpio.Actuator do
   (either by command or due to supervisor crash), the servo PWM output is disabled
   by setting the pulse width to 0.
   """
-  use GenServer
-  @behaviour BB.Safety
+  use BB.Actuator
   import BB.Unit
   import BB.Unit.Option
 
@@ -34,38 +33,36 @@ defmodule BB.Servo.Pigpio.Actuator do
   alias BB.Message.Actuator.Command
   alias BB.Robot.Units
 
-  @options Spark.Options.new!(
-             bb: [
-               type: :map,
-               doc: "Automatically set by the robot supervisor",
-               required: true
-             ],
-             pin: [
-               type: :pos_integer,
-               doc: "The GPIO pin to use for servo output",
-               required: true
-             ],
-             min_pulse: [
-               type: :pos_integer,
-               doc: "The minimum PWM pulse that can be sent to the servo",
-               default: 500
-             ],
-             max_pulse: [
-               type: :pos_integer,
-               doc: "The maximum PWM pulse that can be sent to the servo",
-               default: 2500
-             ],
-             reverse?: [
-               type: :boolean,
-               doc: "Reverse the servo rotation direction?",
-               default: false
-             ],
-             update_speed: [
-               type: unit_type(compatible: :hertz),
-               doc: "The servo update frequency",
-               default: ~u(50 hertz)
-             ]
-           )
+  @impl BB.Actuator
+  def options_schema do
+    Spark.Options.new!(
+      pin: [
+        type: :pos_integer,
+        doc: "The GPIO pin to use for servo output",
+        required: true
+      ],
+      min_pulse: [
+        type: :pos_integer,
+        doc: "The minimum PWM pulse that can be sent to the servo",
+        default: 500
+      ],
+      max_pulse: [
+        type: :pos_integer,
+        doc: "The maximum PWM pulse that can be sent to the servo",
+        default: 2500
+      ],
+      reverse?: [
+        type: :boolean,
+        doc: "Reverse the servo rotation direction?",
+        default: false
+      ],
+      update_speed: [
+        type: unit_type(compatible: :hertz),
+        doc: "The servo update frequency",
+        default: ~u(50 hertz)
+      ]
+    )
+  end
 
   @doc """
   Disable the servo by setting pulse width to 0.
@@ -73,7 +70,7 @@ defmodule BB.Servo.Pigpio.Actuator do
   Called by `BB.Safety.Controller` when the robot is disarmed or crashes.
   This function works without GenServer state - it only needs the pin number.
   """
-  @impl BB.Safety
+  @impl BB.Actuator
   def disarm(opts) do
     pin = Keyword.fetch!(opts, :pin)
 
@@ -85,8 +82,7 @@ defmodule BB.Servo.Pigpio.Actuator do
 
   @impl GenServer
   def init(opts) do
-    with {:ok, opts} <- Spark.Options.validate(opts, @options),
-         {:ok, state} <- build_state(opts),
+    with {:ok, state} <- build_state(opts),
          {:ok, _} <-
            Pigpiox.Socket.command(:set_PWM_frequency, state.pin, round(state.update_speed)),
          {:ok, _} <-
@@ -108,6 +104,11 @@ defmodule BB.Servo.Pigpio.Actuator do
     [name, joint_name | _] = Enum.reverse(opts.bb.path)
     robot = opts.bb.robot.robot()
 
+    min_pulse = Map.get(opts, :min_pulse, 500)
+    max_pulse = Map.get(opts, :max_pulse, 2500)
+    reverse? = Map.get(opts, :reverse?, false)
+    update_speed_unit = Map.get(opts, :update_speed, ~u(50 hertz))
+
     with {:ok, joint} <- fetch_joint(robot, joint_name),
          {:ok, limits} <- validate_joint_limits(joint, joint_name) do
       lower_limit = limits.lower
@@ -115,21 +116,21 @@ defmodule BB.Servo.Pigpio.Actuator do
       range = upper_limit - lower_limit
       center_angle = (lower_limit + upper_limit) / 2
       velocity_limit = limits.velocity
-      pulse_range = opts.max_pulse - opts.min_pulse
+      pulse_range = max_pulse - min_pulse
 
       update_speed =
-        opts.update_speed
+        update_speed_unit
         |> CldrUnit.convert!(:hertz)
         |> Units.extract_float()
 
-      initial_pulse = (opts.max_pulse + opts.min_pulse) / 2
+      initial_pulse = (max_pulse + min_pulse) / 2
 
       state = %{
         bb: opts.bb,
         pin: opts.pin,
-        min_pulse: opts.min_pulse,
-        max_pulse: opts.max_pulse,
-        reverse?: opts.reverse?,
+        min_pulse: min_pulse,
+        max_pulse: max_pulse,
+        reverse?: reverse?,
         update_speed: update_speed,
         lower_limit: lower_limit,
         upper_limit: upper_limit,
