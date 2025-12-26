@@ -6,6 +6,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  alias BB.Error.Invalid.JointConfig, as: JointConfigError
   alias BB.Message
   alias BB.Message.Actuator.Command
   alias BB.Servo.Pigpio.Actuator
@@ -68,7 +69,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
       stub(BB.Robot, :get_joint, fn _robot, @joint_name -> nil end)
 
       opts = [bb: default_bb_context(), pin: 17]
-      assert {:stop, {:joint_not_found, @joint_name}} = Actuator.init(opts)
+      assert {:stop, %JointConfigError{joint: @joint_name}} = Actuator.init(opts)
     end
 
     test "fails for continuous joints" do
@@ -77,7 +78,9 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
       end)
 
       opts = [bb: default_bb_context(), pin: 17]
-      assert {:stop, {:unsupported_joint_type, :continuous, @joint_name}} = Actuator.init(opts)
+
+      assert {:stop, %JointConfigError{joint: @joint_name, field: :type, value: :continuous}} =
+               Actuator.init(opts)
     end
 
     test "fails when limits not defined" do
@@ -86,7 +89,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
       end)
 
       opts = [bb: default_bb_context(), pin: 17]
-      assert {:stop, {:no_limits_defined, @joint_name}} = Actuator.init(opts)
+      assert {:stop, %JointConfigError{joint: @joint_name, field: :limits}} = Actuator.init(opts)
     end
 
     test "fails when lower limit missing" do
@@ -95,7 +98,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
       end)
 
       opts = [bb: default_bb_context(), pin: 17]
-      assert {:stop, {:missing_limit, :lower, @joint_name}} = Actuator.init(opts)
+      assert {:stop, %JointConfigError{joint: @joint_name, field: :lower}} = Actuator.init(opts)
     end
 
     test "fails when upper limit missing" do
@@ -104,7 +107,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
       end)
 
       opts = [bb: default_bb_context(), pin: 17]
-      assert {:stop, {:missing_limit, :upper, @joint_name}} = Actuator.init(opts)
+      assert {:stop, %JointConfigError{joint: @joint_name, field: :upper}} = Actuator.init(opts)
     end
 
     test "initialises servo at center position" do
