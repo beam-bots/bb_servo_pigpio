@@ -27,7 +27,7 @@ Add `bb_servo_pigpio` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:bb_servo_pigpio, "~> 0.4.0"}
+    {:bb_servo_pigpio, "~> 0.5.0"}
   ]
 end
 ```
