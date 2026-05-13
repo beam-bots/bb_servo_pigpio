@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.5.1](https://github.com/beam-bots/bb_servo_pigpio/compare/v0.5.0...v0.5.1) (2026-05-13)
+
+
+
+
+### Improvements:
+
+* add `bb_servo_pigpio.install` igniter task (#26) by James Harton
+
 ## [v0.5.0](https://github.com/beam-bots/bb_servo_pigpio/compare/v0.4.0...v0.5.0) (2026-02-08)
 
 
