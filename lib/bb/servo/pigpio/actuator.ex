@@ -55,7 +55,6 @@ defmodule BB.Servo.Pigpio.Actuator do
       ]
     ]
 
-  alias BB.Cldr.Unit, as: CldrUnit
   alias BB.Error.Invalid.JointConfig, as: JointConfigError
   alias BB.Message
   alias BB.Message.Actuator.BeginMotion
@@ -118,7 +117,7 @@ defmodule BB.Servo.Pigpio.Actuator do
 
       update_speed =
         update_speed_unit
-        |> CldrUnit.convert!(:hertz)
+        |> Localize.Unit.convert!("hertz")
         |> Units.extract_float()
 
       initial_pulse = (max_pulse + min_pulse) / 2
