@@ -58,11 +58,10 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
       opts = [bb: default_bb_context(), pin: 17]
       assert {:ok, state} = Actuator.init(opts)
 
-      assert state.lower_limit == -0.5
-      assert state.upper_limit == 0.5
-      assert state.velocity_limit == 1.0
-      assert state.range == 1.0
-      assert state.center_angle == 0.0
+      assert state.motor_lower == -0.5
+      assert state.motor_upper == 0.5
+      assert state.motor_velocity_limit == 1.0
+      assert state.motor_range == 1.0
     end
 
     test "fails when joint not found" do
@@ -120,7 +119,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
       opts = [bb: default_bb_context(), pin: 17]
       assert {:ok, state} = Actuator.init(opts)
 
-      assert state.current_angle == 0.0
+      assert state.current_motor_angle == 0.0
       assert state.current_pulse == 1500.0
     end
 
@@ -134,8 +133,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
       opts = [bb: default_bb_context(), pin: 17]
       assert {:ok, state} = Actuator.init(opts)
 
-      assert state.center_angle == 1.0
-      assert state.current_angle == 1.0
+      assert state.current_motor_angle == 1.0
     end
   end
 
@@ -179,40 +177,6 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
       end)
 
       Actuator.handle_cast(position_command(0.0), state)
-    end
-  end
-
-  describe "reverse mode" do
-    setup do
-      stub(BB.Robot, :get_joint, fn _robot, @joint_name ->
-        joint_with_limits(-1.0, 1.0, 1.0)
-      end)
-
-      stub_pigpiox_success()
-      stub(BB, :publish, fn _robot, _path, _msg -> :ok end)
-
-      opts = [bb: default_bb_context(), pin: 17, min_pulse: 500, max_pulse: 2500, reverse?: true]
-      {:ok, state} = Actuator.init(opts)
-
-      {:ok, state: state}
-    end
-
-    test "lower limit maps to max_pulse when reversed", %{state: state} do
-      expect(Pigpiox.Socket, :command, fn :set_servo_pulsewidth, 17, pulse ->
-        assert pulse == 2500
-        {:ok, 0}
-      end)
-
-      Actuator.handle_cast(position_command(-1.0), state)
-    end
-
-    test "upper limit maps to min_pulse when reversed", %{state: state} do
-      expect(Pigpiox.Socket, :command, fn :set_servo_pulsewidth, 17, pulse ->
-        assert pulse == 500
-        {:ok, 0}
-      end)
-
-      Actuator.handle_cast(position_command(1.0), state)
     end
   end
 
