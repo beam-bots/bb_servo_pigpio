@@ -6,6 +6,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  alias BB.Actuator.MotorProfile
   alias BB.Error.Invalid.JointConfig, as: JointConfigError
   alias BB.Message
   alias BB.Message.Actuator.Command
@@ -26,127 +27,101 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
   defp maybe_add_opt(opts, key, value), do: Keyword.put(opts, key, value)
 
   defp default_bb_context do
-    # Path is [:joint_name, :actuator_name] - joint first, actuator last
     %{robot: TestRobot, path: [@joint_name, @actuator_name]}
   end
 
-  defp joint_with_limits(lower, upper, velocity) do
-    %{
-      type: :revolute,
-      limits: %{
-        lower: lower,
-        upper: upper,
-        velocity: velocity,
-        effort: 1.0
-      }
+  defp motor_profile(overrides \\ []) do
+    base = %MotorProfile{
+      motor_lower: -0.5,
+      motor_upper: 0.5,
+      motor_velocity_limit: 1.0,
+      motor_initial_position: 0.0
     }
+
+    struct!(base, overrides)
   end
 
   defp stub_pigpiox_success do
     stub(Pigpiox.Socket, :command, fn _cmd, _pin, _val -> {:ok, 0} end)
     stub(BB.Safety, :register, fn _module, _opts -> :ok end)
+    stub(BB.Actuator, :publish_begin_motion, fn _robot, _path, _opts -> :ok end)
   end
 
   describe "init/1" do
-    test "succeeds with valid joint limits" do
-      stub(BB.Robot, :get_joint, fn _robot, @joint_name ->
-        joint_with_limits(-0.5, 0.5, 1.0)
-      end)
-
+    test "succeeds with a complete motor profile" do
       stub_pigpiox_success()
 
-      opts = [bb: default_bb_context(), pin: 17]
+      opts = [bb: default_bb_context(), pin: 17, motor_profile: motor_profile()]
       assert {:ok, state} = Actuator.init(opts)
 
-      assert state.motor_lower == -0.5
-      assert state.motor_upper == 0.5
-      assert state.motor_velocity_limit == 1.0
+      assert state.motor_profile.motor_lower == -0.5
+      assert state.motor_profile.motor_upper == 0.5
+      assert state.motor_profile.motor_velocity_limit == 1.0
       assert state.motor_range == 1.0
     end
 
-    test "fails when joint not found" do
-      stub(BB.Robot, :get_joint, fn _robot, @joint_name -> nil end)
-
-      opts = [bb: default_bb_context(), pin: 17]
-      assert {:stop, %JointConfigError{joint: @joint_name}} = Actuator.init(opts)
-    end
-
-    test "fails for continuous joints" do
-      stub(BB.Robot, :get_joint, fn _robot, @joint_name ->
-        %{type: :continuous, limits: %{lower: nil, upper: nil, velocity: 1.0, effort: 1.0}}
-      end)
-
-      opts = [bb: default_bb_context(), pin: 17]
-
-      assert {:stop, %JointConfigError{joint: @joint_name, field: :type, value: :continuous}} =
-               Actuator.init(opts)
-    end
-
-    test "fails when limits not defined" do
-      stub(BB.Robot, :get_joint, fn _robot, @joint_name ->
-        %{type: :revolute, limits: nil}
-      end)
-
-      opts = [bb: default_bb_context(), pin: 17]
-      assert {:stop, %JointConfigError{joint: @joint_name, field: :limits}} = Actuator.init(opts)
-    end
-
-    test "fails when lower limit missing" do
-      stub(BB.Robot, :get_joint, fn _robot, @joint_name ->
-        %{type: :revolute, limits: %{lower: nil, upper: 0.5, velocity: 1.0, effort: 1.0}}
-      end)
-
-      opts = [bb: default_bb_context(), pin: 17]
+    test "fails when motor profile has no lower limit" do
+      opts = [bb: default_bb_context(), pin: 17, motor_profile: motor_profile(motor_lower: nil)]
       assert {:stop, %JointConfigError{joint: @joint_name, field: :lower}} = Actuator.init(opts)
     end
 
-    test "fails when upper limit missing" do
-      stub(BB.Robot, :get_joint, fn _robot, @joint_name ->
-        %{type: :revolute, limits: %{lower: -0.5, upper: nil, velocity: 1.0, effort: 1.0}}
-      end)
-
-      opts = [bb: default_bb_context(), pin: 17]
+    test "fails when motor profile has no upper limit" do
+      opts = [bb: default_bb_context(), pin: 17, motor_profile: motor_profile(motor_upper: nil)]
       assert {:stop, %JointConfigError{joint: @joint_name, field: :upper}} = Actuator.init(opts)
     end
 
-    test "initialises servo at center position" do
-      stub(BB.Robot, :get_joint, fn _robot, @joint_name ->
-        joint_with_limits(-1.0, 1.0, 1.0)
-      end)
+    test "fails when motor profile has no velocity limit" do
+      opts = [
+        bb: default_bb_context(),
+        pin: 17,
+        motor_profile: motor_profile(motor_velocity_limit: nil)
+      ]
 
+      assert {:stop, %JointConfigError{joint: @joint_name, field: :velocity}} =
+               Actuator.init(opts)
+    end
+
+    test "initialises servo at center position" do
       stub_pigpiox_success()
 
-      opts = [bb: default_bb_context(), pin: 17]
+      opts = [
+        bb: default_bb_context(),
+        pin: 17,
+        motor_profile: motor_profile(motor_lower: -1.0, motor_upper: 1.0)
+      ]
+
       assert {:ok, state} = Actuator.init(opts)
 
       assert state.current_motor_angle == 0.0
       assert state.current_pulse == 1500.0
     end
 
-    test "initialises asymmetric joint at correct center" do
-      stub(BB.Robot, :get_joint, fn _robot, @joint_name ->
-        joint_with_limits(0.0, 2.0, 1.0)
-      end)
-
+    test "uses the motor profile's initial position" do
       stub_pigpiox_success()
 
-      opts = [bb: default_bb_context(), pin: 17]
-      assert {:ok, state} = Actuator.init(opts)
+      opts = [
+        bb: default_bb_context(),
+        pin: 17,
+        motor_profile: motor_profile(motor_initial_position: 1.0)
+      ]
 
+      assert {:ok, state} = Actuator.init(opts)
       assert state.current_motor_angle == 1.0
     end
   end
 
   describe "angle_to_pulse conversion" do
     setup do
-      stub(BB.Robot, :get_joint, fn _robot, @joint_name ->
-        joint_with_limits(-1.0, 1.0, 1.0)
-      end)
-
       stub_pigpiox_success()
-      stub(BB, :publish, fn _robot, _path, _msg -> :ok end)
 
-      opts = [bb: default_bb_context(), pin: 17, min_pulse: 500, max_pulse: 2500]
+      opts = [
+        bb: default_bb_context(),
+        pin: 17,
+        min_pulse: 500,
+        max_pulse: 2500,
+        motor_profile: motor_profile(motor_lower: -1.0, motor_upper: 1.0)
+      ]
+
       {:ok, state} = Actuator.init(opts)
 
       {:ok, state: state}
@@ -182,14 +157,16 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
 
   describe "position clamping" do
     setup do
-      stub(BB.Robot, :get_joint, fn _robot, @joint_name ->
-        joint_with_limits(-1.0, 1.0, 1.0)
-      end)
-
       stub_pigpiox_success()
-      stub(BB, :publish, fn _robot, _path, _msg -> :ok end)
 
-      opts = [bb: default_bb_context(), pin: 17, min_pulse: 500, max_pulse: 2500]
+      opts = [
+        bb: default_bb_context(),
+        pin: 17,
+        min_pulse: 500,
+        max_pulse: 2500,
+        motor_profile: motor_profile(motor_lower: -1.0, motor_upper: 1.0)
+      ]
+
       {:ok, state} = Actuator.init(opts)
 
       {:ok, state: state}
@@ -214,44 +191,44 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
     end
   end
 
-  describe "position_commanded publishing" do
+  describe "begin_motion publishing" do
     setup do
-      stub(BB.Robot, :get_joint, fn _robot, @joint_name ->
-        joint_with_limits(-1.0, 1.0, 1.0)
-      end)
-
       stub_pigpiox_success()
 
-      opts = [bb: default_bb_context(), pin: 17]
+      opts = [
+        bb: default_bb_context(),
+        pin: 17,
+        motor_profile: motor_profile(motor_lower: -1.0, motor_upper: 1.0)
+      ]
+
       {:ok, state} = Actuator.init(opts)
 
       {:ok, state: state}
     end
 
-    test "publishes position_commanded message", %{state: state} do
+    test "calls publish_begin_motion with motor-space opts", %{state: state} do
       test_pid = self()
 
-      expect(BB, :publish, fn robot, path, message ->
-        send(test_pid, {:published, robot, path, message})
+      expect(BB.Actuator, :publish_begin_motion, fn robot, path, opts ->
+        send(test_pid, {:published, robot, path, opts})
         :ok
       end)
 
       Actuator.handle_cast(position_command(0.5), state)
 
-      assert_receive {:published, TestRobot, [:actuator, @joint_name, @actuator_name], message}
+      assert_receive {:published, TestRobot, [@joint_name, @actuator_name], opts}
 
-      assert %BB.Message{payload: %BB.Message.Actuator.BeginMotion{} = cmd} = message
-      assert cmd.initial_position == 0.0
-      assert cmd.target_position == 0.5
-      assert is_integer(cmd.expected_arrival)
-      assert cmd.expected_arrival > System.monotonic_time(:millisecond)
+      assert opts[:initial_position] == 0.0
+      assert opts[:target_position] == 0.5
+      assert is_integer(opts[:expected_arrival])
+      assert opts[:expected_arrival] > System.monotonic_time(:millisecond)
     end
 
     test "calculates expected arrival based on velocity", %{state: state} do
       test_pid = self()
 
-      expect(BB, :publish, fn _robot, _path, %BB.Message{payload: cmd} ->
-        send(test_pid, {:arrival, cmd.expected_arrival})
+      expect(BB.Actuator, :publish_begin_motion, fn _robot, _path, opts ->
+        send(test_pid, {:arrival, opts[:expected_arrival]})
         :ok
       end)
 
@@ -283,10 +260,6 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
     end
 
     test "init/1 registers with safety controller" do
-      stub(BB.Robot, :get_joint, fn _robot, @joint_name ->
-        joint_with_limits(-0.5, 0.5, 1.0)
-      end)
-
       stub_pigpiox_success()
 
       expect(BB.Safety, :register, fn module, opts ->
@@ -297,7 +270,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
         :ok
       end)
 
-      opts = [bb: default_bb_context(), pin: 17]
+      opts = [bb: default_bb_context(), pin: 17, motor_profile: motor_profile()]
       assert {:ok, _state} = Actuator.init(opts)
     end
   end
