@@ -80,7 +80,7 @@ defmodule BB.Servo.Pigpio.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:bb, bb_dep("~> 0.16")},
+      {:bb, bb_dep("~> 0.18")},
       {:pigpiox, "~> 0.1", runtime: Mix.env() != :test},
 
       # dev/test
