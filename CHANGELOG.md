@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.6.0](https://github.com/beam-bots/bb_servo_pigpio/compare/v0.5.2...v0.6.0) (2026-05-21)
+
+
+
+
+### Features:
+
+* remove `reverse?`, move to motor-space (#29) by James Harton
+
 ## [v0.5.2](https://github.com/beam-bots/bb_servo_pigpio/compare/v0.5.1...v0.5.2) (2026-05-17)
 
 
