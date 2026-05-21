@@ -4,17 +4,20 @@
 
 if Code.ensure_loaded?(Igniter) do
   defmodule Mix.Tasks.BbServoPigpio.Upgrade do
-    @shortdoc "Lifts `reverse?` into joint transmissions"
+    @shortdoc "Lifts `reverse?` into the actuator's transmission"
     @moduledoc """
     #{@shortdoc}
 
     `BB.Servo.Pigpio.Actuator` no longer takes a `reverse?` option. Polarity
-    now lives in the joint-level `transmission` block in BB.
+    now lives in a per-attachment `transmission` block in BB.
 
     This upgrader rewrites every robot module in the project: for each
     actuator with `BB.Servo.Pigpio.Actuator` as its driver, it removes
-    `reverse?:` from the actuator's options and, when it was `true`, inserts
-    a `transmission do reversed? true end` block on the parent joint.
+    `reverse?:` from the actuator's options and, when it was `true`, nests
+    a `transmission do reversed? true end` block inside the actuator's own
+    do/end. It also handles re-running from older versions where the
+    transmission sat at the joint level: any joint-level `transmission`
+    block is moved into the matching actuator.
     """
 
     use Igniter.Mix.Task
