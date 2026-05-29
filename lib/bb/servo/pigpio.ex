@@ -6,13 +6,15 @@ defmodule BB.Servo.Pigpio do
   @moduledoc """
   BB integration for driving RC servos via pigpio on Raspberry Pi.
 
-  This library provides actuator and sensor modules for controlling RC servos
-  directly connected to Raspberry Pi GPIO pins using the pigpio daemon.
+  This library provides an actuator module for controlling RC servos directly
+  connected to Raspberry Pi GPIO pins using the pigpio daemon.
 
   ## Components
 
   - `BB.Servo.Pigpio.Actuator` - Controls servo position via PWM
-  - `BB.Servo.Pigpio.Sensor` - Provides position feedback by subscribing to actuator commands
+
+  Position feedback is provided by `BB.Sensor.OpenLoopPositionEstimator` from BB
+  core, paired with the actuator in the joint definition.
 
   ## Requirements
 
@@ -27,7 +29,7 @@ defmodule BB.Servo.Pigpio do
         limit lower: ~u(-45 degree), upper: ~u(45 degree), velocity: ~u(60 degree_per_second)
 
         actuator :servo, {BB.Servo.Pigpio.Actuator, pin: 17}
-        sensor :feedback, {BB.Servo.Pigpio.Sensor, actuator: :servo}
+        sensor :feedback, {BB.Sensor.OpenLoopPositionEstimator, actuator: :servo}
       end
 
   The actuator automatically derives its configuration from the joint limits - no need
@@ -46,14 +48,12 @@ defmodule BB.Servo.Pigpio do
   1. Clamps the position to joint limits
   2. Converts to PWM pulse width
   3. Sends command to pigpiod
-  4. Publishes `{:position_commanded, angle, expected_arrival}` for sensors
+  4. Publishes `BB.Message.Actuator.BeginMotion`
 
-  ### Sensor
+  ### Position feedback
 
-  The sensor subscribes to actuator position commands and publishes `JointState`
-  messages. It provides:
-  - Position interpolation during movement
-  - Configurable publish rate (default 50Hz)
-  - Periodic sync publishing even when idle (default every 5 seconds)
+  Position feedback comes from `BB.Sensor.OpenLoopPositionEstimator` (BB core),
+  not this library. It subscribes to the actuator's `BeginMotion` messages,
+  interpolates the joint position during movement, and publishes `JointState`.
   """
 end
