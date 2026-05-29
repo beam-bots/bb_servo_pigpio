@@ -30,7 +30,7 @@ defmodule BB.Servo.Pigpio.MixProject do
 
   defp dialyzer do
     [
-      plt_add_apps: [:mix]
+      plt_add_apps: [:mix, :pigpiox]
     ]
   end
 
