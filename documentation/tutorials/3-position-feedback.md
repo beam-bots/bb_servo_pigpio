@@ -6,9 +6,9 @@ SPDX-License-Identifier: Apache-2.0
 
 # Position Feedback
 
-RC servos don't provide position feedback, but `BB.Servo.Pigpio.Sensor` can
-estimate position based on commanded targets and timing. This tutorial shows you
-how to set up and use position feedback.
+RC servos don't provide position feedback, but `BB.Sensor.OpenLoopPositionEstimator`
+(from BB core) can estimate position based on commanded targets and timing. This
+tutorial shows you how to set up and use position feedback.
 
 ## Prerequisites
 
@@ -29,7 +29,7 @@ defmodule MyRobot do
         limit lower: ~u(-90 degree), upper: ~u(90 degree), velocity: ~u(60 degree_per_second)
 
         actuator :servo, {BB.Servo.Pigpio.Actuator, pin: 17}
-        sensor :feedback, {BB.Servo.Pigpio.Sensor, actuator: :servo}
+        sensor :feedback, {BB.Sensor.OpenLoopPositionEstimator, actuator: :servo}
 
         link :head do
         end
@@ -45,8 +45,9 @@ The sensor requires the `actuator` option to know which actuator to subscribe to
 
 Since RC servos don't report their actual position, the sensor estimates it:
 
-1. **Actuator publishes commands** - When you call `set_position`, the actuator
-   publishes `{:position_commanded, target_angle, expected_arrival_time}`
+1. **Actuator publishes motion** - When you call `set_position`, the actuator
+   publishes a `BB.Message.Actuator.BeginMotion` message with the target position
+   and expected arrival time
 
 2. **Sensor subscribes** - The sensor receives these messages and tracks the
    target position and expected arrival time
@@ -74,12 +75,20 @@ Time 5000ms: Sync publish at 45° (max_silence reached)
 ## Sensor Options
 
 ```elixir
-sensor :feedback, {BB.Servo.Pigpio.Sensor,
+sensor :feedback, {BB.Sensor.OpenLoopPositionEstimator,
   actuator: :servo,           # Required: actuator to subscribe to
+  easing: :linear,            # Optional: interpolation easing function (default: :linear)
   publish_rate: ~u(50 hertz), # Optional: how often to check for changes (default: 50 Hz)
   max_silence: ~u(5 second)   # Optional: max time between publishes (default: 5s)
 }
 ```
+
+### easing
+
+The easing function shapes how the estimated position interpolates from the
+previous position to the target during movement. `:linear` (constant velocity)
+is the default; sinusoidal, quadratic, cubic, and other curves are available.
+See `BB.Sensor.OpenLoopPositionEstimator` for the full list.
 
 ### publish_rate
 
