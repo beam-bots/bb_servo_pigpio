@@ -11,7 +11,9 @@ SPDX-License-Identifier: Apache-2.0
 [![CI](https://github.com/beam-bots/bb_servo_pigpio/actions/workflows/ci.yml/badge.svg)](https://github.com/beam-bots/bb_servo_pigpio/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache--2.0-green.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Hex version badge](https://img.shields.io/hexpm/v/bb_servo_pigpio.svg)](https://hex.pm/packages/bb_servo_pigpio)
+[![Hexdocs badge](https://img.shields.io/badge/docs-hexdocs-purple)](https://hexdocs.pm/bb_servo_pigpio)
 [![REUSE status](https://api.reuse.software/badge/github.com/beam-bots/bb_servo_pigpio)](https://api.reuse.software/info/github.com/beam-bots/bb_servo_pigpio)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/beam-bots/bb_servo_pigpio)
 
 # BB.Servo.Pigpio
 
