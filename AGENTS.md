@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2025 James Harton
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# CLAUDE.md
+# AGENTS.md
 
 This file provides guidance to AI coding assistants when working with code in this repository.
 
