@@ -37,7 +37,7 @@ end
 ## Requirements
 
 - Raspberry Pi with pigpio daemon running (`sudo pigpiod`)
-- BB framework (`~> 0.2`)
+- BB framework (`~> 0.18`)
 
 ## Usage
 
@@ -121,8 +121,18 @@ end
 | `pin` | integer | required | GPIO pin number |
 | `min_pulse` | integer | 500 | Minimum PWM pulse width (microseconds) |
 | `max_pulse` | integer | 2500 | Maximum PWM pulse width (microseconds) |
-| `reverse?` | boolean | false | Reverse rotation direction |
 | `update_speed` | unit | 50 Hz | PWM update frequency |
+
+To reverse the servo relative to the joint, configure the actuator's joint
+transmission rather than passing an actuator option:
+
+```elixir
+actuator :servo, {BB.Servo.Pigpio.Actuator, pin: 17} do
+  transmission do
+    reversed? true
+  end
+end
+```
 
 **Behaviour:**
 

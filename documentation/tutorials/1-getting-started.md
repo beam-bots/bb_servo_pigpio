@@ -71,8 +71,8 @@ Add `bb_servo_pigpio` and `pigpiox` to your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:bb, "~> 0.2"},
-    {:bb_servo_pigpio, "~> 0.1"},
+    {:bb, "~> 0.18"},
+    {:bb_servo_pigpio, "~> 0.6.0"},
     {:pigpiox, "~> 0.1"}
   ]
 end
