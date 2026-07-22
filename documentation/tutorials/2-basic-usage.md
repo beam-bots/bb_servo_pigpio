@@ -65,7 +65,6 @@ actuator :servo, {BB.Servo.Pigpio.Actuator,
   pin: 17,           # Required: GPIO pin number
   min_pulse: 500,    # Optional: minimum pulse width in µs (default: 500)
   max_pulse: 2500,   # Optional: maximum pulse width in µs (default: 2500)
-  reverse?: false,   # Optional: reverse rotation direction (default: false)
   update_speed: ~u(50 hertz)  # Optional: PWM update frequency (default: 50 Hz)
 }
 ```
@@ -130,19 +129,19 @@ BB.Actuator.set_position(MyRobot, :servo, 3.14)  # Requested: 180°, actual: 90�
 
 ## Reversing Direction
 
-If your servo rotates in the opposite direction to what you expect, use the
-`reverse?` option:
+If your servo rotates in the opposite direction to what you expect, reverse the
+actuator's joint transmission:
 
 ```elixir
-actuator :servo, {BB.Servo.Pigpio.Actuator,
-  pin: 17,
-  reverse?: true
-}
+actuator :servo, {BB.Servo.Pigpio.Actuator, pin: 17} do
+  transmission do
+    reversed? true
+  end
+end
 ```
 
-This inverts the PWM mapping so that:
-- Lower limit → maximum pulse
-- Upper limit → minimum pulse
+BB applies the transmission before passing motor-space positions to the Pigpio
+actuator, so direction reversal does not belong in the actuator options.
 
 ## Example: Pan-Tilt Head
 
