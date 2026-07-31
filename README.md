@@ -49,8 +49,13 @@ defmodule MyRobot do
 
   topology do
     link :base do
-      joint :shoulder, type: :revolute do
-        limit lower: ~u(-45 degree), upper: ~u(45 degree), velocity: ~u(60 degree_per_second)
+      joint :shoulder do
+        type :revolute
+
+        limit lower: ~u(-45 degree),
+              upper: ~u(45 degree),
+              effort: ~u(0.2 newton_meter),
+              velocity: ~u(60 degree_per_second)
 
         actuator :servo, {BB.Servo.Pigpio.Actuator, pin: 17}
         sensor :feedback, {BB.Sensor.OpenLoopPositionEstimator, actuator: :servo}

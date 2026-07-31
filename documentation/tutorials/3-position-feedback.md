@@ -21,25 +21,43 @@ Add the sensor to your joint definition:
 
 ```elixir
 defmodule MyRobot do
-  use BB.Robot
+  use BB
 
-  robot do
+  commands do
+    command :arm do
+      handler BB.Command.Arm
+      allowed_states [:disarmed]
+    end
+
+    command :disarm do
+      handler BB.Command.Disarm
+      allowed_states [:idle]
+    end
+  end
+
+  topology do
     link :base do
-      joint :pan, type: :revolute do
-        limit lower: ~u(-90 degree), upper: ~u(90 degree), velocity: ~u(60 degree_per_second)
+      joint :pan do
+        type :revolute
+
+        limit lower: ~u(-90 degree),
+              upper: ~u(90 degree),
+              effort: ~u(0.2 newton_meter),
+              velocity: ~u(60 degree_per_second)
 
         actuator :servo, {BB.Servo.Pigpio.Actuator, pin: 17}
         sensor :feedback, {BB.Sensor.OpenLoopPositionEstimator, actuator: :servo}
 
-        link :head do
-        end
+        link :head
       end
     end
   end
 end
 ```
 
-The sensor requires the `actuator` option to know which actuator to subscribe to.
+The sensor requires the `actuator` option to know which actuator to subscribe
+to. Unlike the command functions, this option takes the actuator's unique
+*name*, not its path.
 
 ## How Position Feedback Works
 
@@ -112,29 +130,37 @@ Set to a higher value if you want less traffic when idle.
 
 ## Subscribing to Position Updates
 
-Subscribe to the sensor's JointState messages:
+Subscribe to the sensor's JointState messages. Sensor topics are `[:sensor |
+path]`, where the path runs from the root link down to the sensor:
 
 ```elixir
 # Subscribe to the sensor topic
-BB.subscribe(MyRobot, [:sensor, :pan, :feedback])
+BB.subscribe(MyRobot, [:sensor, :base, :pan, :feedback])
 
 # In your GenServer or process
-def handle_info(%BB.Message{payload: %BB.Message.Sensor.JointState{} = joint_state}, state) do
+def handle_info({:bb, _path, %BB.Message{payload: %BB.Message.Sensor.JointState{} = joint_state}}, state) do
   [position] = joint_state.positions
   IO.puts("Pan position: #{position} radians")
   {:noreply, state}
 end
 ```
 
+Subscribing to a shorter path receives everything beneath it, so
+`[:sensor, :base]` picks up every sensor in the robot and `[:sensor]` picks up
+all of them regardless of topology.
+
 ## Reading Current Position
 
-You can also query the robot's state directly:
+You can also query the robot's current joint positions directly. These are
+maintained by the runtime from published `JointState` messages, so they reflect
+the estimator's output:
 
 ```elixir
-# Get current joint positions
-state = BB.Robot.State.get(MyRobot)
-pan_position = BB.Robot.State.get_joint_position(state, :pan)
+iex> BB.Robot.Runtime.positions(MyRobot)
+%{pan: 0.785}
 ```
+
+`BB.Robot.Runtime.velocities/1` returns the matching velocities.
 
 ## Example: Position Logger
 
@@ -149,11 +175,11 @@ defmodule PositionLogger do
   end
 
   def init(robot) do
-    BB.subscribe(robot, [:sensor, :pan, :feedback])
+    BB.subscribe(robot, [:sensor, :base, :pan, :feedback])
     {:ok, %{robot: robot}}
   end
 
-  def handle_info(%BB.Message{payload: %BB.Message.Sensor.JointState{} = js}, state) do
+  def handle_info({:bb, _path, %BB.Message{payload: %BB.Message.Sensor.JointState{} = js}}, state) do
     [position] = js.positions
     degrees = position * 180 / :math.pi()
     IO.puts("[#{DateTime.utc_now()}] Pan: #{Float.round(degrees, 1)}°")
@@ -168,8 +194,11 @@ Start the logger:
 {:ok, _} = MyRobot.start_link()
 {:ok, _} = PositionLogger.start_link(MyRobot)
 
+{:ok, cmd} = MyRobot.arm()
+{:ok, :armed, _opts} = BB.Command.await(cmd)
+
 # Move the servo and watch the logs
-BB.Actuator.set_position(MyRobot, :servo, 0.785)
+BB.Actuator.set_position(MyRobot, [:base, :pan, :servo], 0.785)
 # Output:
 # [2025-01-15 10:30:00.000000Z] Pan: 9.0°
 # [2025-01-15 10:30:00.020000Z] Pan: 18.0°
@@ -185,19 +214,16 @@ Wait for the servo to reach its target position:
 ```elixir
 defmodule ServoHelper do
   def move_and_wait(robot, actuator, target, timeout \\ 5000) do
-    # Subscribe to sensor updates
-    BB.subscribe(robot, [:sensor, :pan, :feedback])
+    BB.subscribe(robot, [:sensor, :base, :pan, :feedback])
 
-    # Send the command
-    BB.Actuator.set_position(robot, actuator, target)
+    BB.Actuator.set_position!(robot, actuator, target)
 
-    # Wait for position to match target
     wait_for_position(target, timeout)
   end
 
   defp wait_for_position(target, timeout) do
     receive do
-      %BB.Message{payload: %BB.Message.Sensor.JointState{positions: [position]}}
+      {:bb, _path, %BB.Message{payload: %BB.Message.Sensor.JointState{positions: [position]}}}
       when abs(position - target) < 0.01 ->
         :ok
     after
@@ -206,10 +232,14 @@ defmodule ServoHelper do
   end
 end
 
-# Usage
+# Usage, once the robot is armed
 :ok = ServoHelper.move_and_wait(MyRobot, :servo, 0.785)
 IO.puts("Servo reached target!")
 ```
+
+This uses `set_position!/4`, which addresses the actuator by its unique name
+rather than its path, so the helper doesn't need to know where in the topology
+the servo sits.
 
 ## Limitations
 
