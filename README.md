@@ -47,10 +47,26 @@ Define a joint with a servo actuator in your robot DSL:
 defmodule MyRobot do
   use BB
 
+  # A robot won't move until armed, and arming is a command.
+  commands do
+    command :arm do
+      handler BB.Command.Arm
+      allowed_states [:disarmed]
+    end
+
+    command :disarm do
+      handler BB.Command.Disarm
+      allowed_states [:idle]
+    end
+  end
+
   topology do
     link :base do
-      joint :shoulder, type: :revolute do
-        limit lower: ~u(-45 degree), upper: ~u(45 degree), velocity: ~u(60 degree_per_second)
+      joint :shoulder do
+        type :revolute
+
+        limit lower: ~u(-45 degree), upper: ~u(45 degree),
+              velocity: ~u(60 degree_per_second), effort: ~u(1 newton_meter)
 
         actuator :servo, {BB.Servo.Pigpio.Actuator, pin: 17}
         sensor :feedback, {BB.Sensor.OpenLoopPositionEstimator, actuator: :servo}
@@ -69,8 +85,20 @@ need to specify servo rotation range or speed separately.
 
 ## Sending Commands
 
-Use the `BB.Actuator` module to send commands to servos. Three delivery methods
-are available:
+Use the `BB.Actuator` module to send commands to servos. Arm the robot first —
+commands to a disarmed robot are refused before they reach the driver:
+
+```elixir
+{:ok, cmd} = MyRobot.arm()
+{:ok, :armed, _} = BB.Command.await(cmd)
+```
+
+There are three ways to deliver a command. They differ in transport, not in
+what the driver sees: all three arrive at the actuator's `handle_command/2`,
+and none can skip the framework's arm check or its joint-to-motor transmission.
+
+Every function takes either the actuator's unique name or its full path
+through the topology.
 
 ### Pubsub Delivery (for orchestration)
 
