@@ -155,6 +155,38 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
     end
   end
 
+  describe "stop" do
+    setup do
+      stub_pigpiox_success()
+
+      opts = [
+        bb: default_bb_context(),
+        pin: 17,
+        min_pulse: 500,
+        max_pulse: 2500,
+        motor_profile: motor_profile(motor_lower: -1.0, motor_upper: 1.0)
+      ]
+
+      {:ok, state} = Actuator.init(opts)
+
+      {:ok, state: state}
+    end
+
+    test "stops driving the servo signal", %{state: state} do
+      test_pid = self()
+
+      expect(Pigpiox.Socket, :command, fn :set_servo_pulsewidth, 17, pulse ->
+        send(test_pid, {:pulse, pulse})
+        {:ok, 0}
+      end)
+
+      assert {:noreply, _state} =
+               Actuator.handle_command(%Message{payload: %Command.Stop{}}, state)
+
+      assert_receive {:pulse, 0}
+    end
+  end
+
   describe "position clamping" do
     setup do
       stub_pigpiox_success()
