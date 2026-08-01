@@ -184,6 +184,19 @@ defmodule BB.Servo.Pigpio.Actuator do
     do_set_position(cmd.position, cmd.command_id, state)
   end
 
+  # `Stop` means cease travelling and become passive — the counterpart to `Hold`,
+  # which maintains position. A zero pulse width stops driving the signal, leaving
+  # the servo free to backdrive, which is exactly that. Same primitive `disarm/1`
+  # uses.
+  #
+  # This is not the safety path: making hardware safe is `disarm/1`.
+  def handle_command(%Message{payload: %Command.Stop{}}, state) do
+    case Pigpiox.Socket.command(:set_servo_pulsewidth, state.pin, 0) do
+      {:ok, _} -> {:noreply, state}
+      {:error, reason} -> {:stop, reason, state}
+    end
+  end
+
   def handle_command(%Message{}, state), do: {:noreply, state}
 
   defp do_set_position(motor_angle, command_id, state) when is_integer(motor_angle),
