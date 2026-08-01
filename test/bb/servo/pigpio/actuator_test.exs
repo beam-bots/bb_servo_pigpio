@@ -20,7 +20,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
       [position: position * 1.0]
       |> maybe_add_opt(:command_id, opts[:command_id])
 
-    {:command, Message.new!(Command.Position, @joint_name, message_opts)}
+    Message.new!(Command.Position, @joint_name, message_opts)
   end
 
   defp maybe_add_opt(opts, _key, nil), do: opts
@@ -133,7 +133,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
         {:ok, 0}
       end)
 
-      Actuator.handle_cast(position_command(-1.0), state)
+      Actuator.handle_command(position_command(-1.0), state)
     end
 
     test "upper limit maps to max_pulse", %{state: state} do
@@ -142,7 +142,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
         {:ok, 0}
       end)
 
-      Actuator.handle_cast(position_command(1.0), state)
+      Actuator.handle_command(position_command(1.0), state)
     end
 
     test "center maps to mid_pulse", %{state: state} do
@@ -151,7 +151,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
         {:ok, 0}
       end)
 
-      Actuator.handle_cast(position_command(0.0), state)
+      Actuator.handle_command(position_command(0.0), state)
     end
   end
 
@@ -178,7 +178,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
         {:ok, 0}
       end)
 
-      Actuator.handle_cast(position_command(-5.0), state)
+      Actuator.handle_command(position_command(-5.0), state)
     end
 
     test "clamps position above upper limit", %{state: state} do
@@ -187,7 +187,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
         {:ok, 0}
       end)
 
-      Actuator.handle_cast(position_command(5.0), state)
+      Actuator.handle_command(position_command(5.0), state)
     end
   end
 
@@ -214,7 +214,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
         :ok
       end)
 
-      Actuator.handle_cast(position_command(0.5), state)
+      Actuator.handle_command(position_command(0.5), state)
 
       assert_receive {:published, TestRobot, [@joint_name, @actuator_name], opts}
 
@@ -233,7 +233,7 @@ defmodule BB.Servo.Pigpio.ActuatorTest do
       end)
 
       before = System.monotonic_time(:millisecond)
-      Actuator.handle_cast(position_command(1.0), state)
+      Actuator.handle_command(position_command(1.0), state)
 
       assert_receive {:arrival, expected_arrival}
 

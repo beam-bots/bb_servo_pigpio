@@ -43,10 +43,13 @@ mix docs
 - Derives position limits and velocity from BB joint constraints
 - Maps joint position range to PWM pulse width range (default 500-2500 microseconds)
 - Publishes `BB.Message.Actuator.BeginMotion` messages after each command
-- Handles commands via three delivery methods:
-  - `handle_info/2` for pubsub delivery (`BB.Actuator.set_position/4`)
-  - `handle_cast/2` for direct delivery (`BB.Actuator.set_position!/4`)
-  - `handle_call/3` for synchronous delivery (`BB.Actuator.set_position_sync/5`)
+- Accepts commands sent via:
+  - `BB.Actuator.set_position/4` (pubsub)
+  - `BB.Actuator.set_position!/4` (direct)
+  - `BB.Actuator.set_position_sync/5` (synchronous)
+
+  All three arrive at `handle_command/2`; `BB.Actuator.Server` checks arm state and applies
+  the joint's transmission before the driver sees them.
 
 ### Integration Pattern
 
