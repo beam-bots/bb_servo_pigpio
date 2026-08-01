@@ -35,8 +35,11 @@ open-loop estimator for position feedback (RC servos have no feedback of their
 own):
 
 ```elixir
-joint :shoulder, type: :revolute do
-  limit lower: ~u(-45 degree), upper: ~u(45 degree), velocity: ~u(60 degree_per_second)
+joint :shoulder do
+  type :revolute
+
+  limit lower: ~u(-45 degree), upper: ~u(45 degree),
+        velocity: ~u(60 degree_per_second), effort: ~u(1 newton_meter)
 
   actuator :servo, {BB.Servo.Pigpio.Actuator, pin: 17}
   sensor :feedback, {BB.Sensor.OpenLoopPositionEstimator, actuator: :servo}
@@ -51,7 +54,9 @@ joint-space through `BB.Actuator`; the framework applies the joint transmission
 and hands the driver motor-space values:
 
 ```elixir
-BB.Actuator.set_position(MyRobot.Robot, [:shoulder, :servo], 0.5)
+# Either the actuator's unique name or its full path — `[:base, :shoulder, :servo]`
+# here. A partial path matches no subscriber and the command goes nowhere.
+BB.Actuator.set_position(MyRobot.Robot, :servo, 0.5)
 ```
 
 ## Options

@@ -19,15 +19,32 @@ Create a robot module with a revolute joint controlled by a servo:
 
 ```elixir
 defmodule MyRobot do
-  use BB.Robot
+  use BB
 
-  robot do
+  # A robot starts disarmed and won't move until armed. Arming is a command, so
+  # the robot has to declare one.
+  commands do
+    command :arm do
+      handler BB.Command.Arm
+      allowed_states [:disarmed]
+    end
+
+    command :disarm do
+      handler BB.Command.Disarm
+      allowed_states [:idle]
+    end
+  end
+
+  topology do
     link :base do
-      joint :pan, type: :revolute do
+      joint :pan do
+        type :revolute
+
         # Define the joint's motion limits
         limit lower: ~u(-90 degree),
               upper: ~u(90 degree),
-              velocity: ~u(60 degree_per_second)
+              velocity: ~u(60 degree_per_second),
+              effort: ~u(1 newton_meter)
 
         # Attach the servo actuator
         actuator :servo, {BB.Servo.Pigpio.Actuator, pin: 17}
@@ -98,9 +115,27 @@ iex> MyRobot.start_link()
 {:ok, #PID<0.123.0>}
 ```
 
+## Arming the Robot
+
+A robot starts `:disarmed` and refuses every command until armed — the
+framework drops them before they reach the driver, so a disarmed servo simply
+won't move. Arm it through the command declared above:
+
+```elixir
+iex> {:ok, cmd} = MyRobot.arm()
+iex> BB.Command.await(cmd)
+{:ok, :armed, [next_state: :idle]}
+```
+
+Arming runs whatever prearm checks the robot defines, which is why it's a
+command rather than a flag. Don't reach for `BB.Safety` directly — that skips
+them.
+
 ## Commanding the Servo
 
-Send position commands to the actuator:
+Send position commands to the actuator. An actuator can be addressed by its
+unique name, as below, or by its full path through the topology
+(`[:base, :pan, :servo]` here):
 
 ```elixir
 # Move to centre (0 degrees)
@@ -149,18 +184,40 @@ Here's a complete example with two servos for a pan-tilt mechanism:
 
 ```elixir
 defmodule PanTiltRobot do
-  use BB.Robot
+  use BB
 
-  robot do
+  commands do
+    command :arm do
+      handler BB.Command.Arm
+      allowed_states [:disarmed]
+    end
+
+    command :disarm do
+      handler BB.Command.Disarm
+      allowed_states [:idle]
+    end
+  end
+
+  topology do
     link :base do
-      joint :pan, type: :revolute do
-        limit lower: ~u(-90 degree), upper: ~u(90 degree), velocity: ~u(90 degree_per_second)
-        actuator :servo, {BB.Servo.Pigpio.Actuator, pin: 17}
+      joint :pan do
+        type :revolute
+
+        limit lower: ~u(-90 degree), upper: ~u(90 degree),
+              velocity: ~u(90 degree_per_second), effort: ~u(1 newton_meter)
+
+        # Actuator names are unique across the whole robot, so each servo needs
+        # its own name — not `:servo` twice.
+        actuator :pan_servo, {BB.Servo.Pigpio.Actuator, pin: 17}
 
         link :pan_platform do
-          joint :tilt, type: :revolute do
-            limit lower: ~u(-45 degree), upper: ~u(45 degree), velocity: ~u(60 degree_per_second)
-            actuator :servo, {BB.Servo.Pigpio.Actuator, pin: 18}
+          joint :tilt do
+            type :revolute
+
+            limit lower: ~u(-45 degree), upper: ~u(45 degree),
+                  velocity: ~u(60 degree_per_second), effort: ~u(1 newton_meter)
+
+            actuator :tilt_servo, {BB.Servo.Pigpio.Actuator, pin: 18}
 
             link :camera_mount do
               # Camera attached here
@@ -176,9 +233,12 @@ end
 Command both servos:
 
 ```elixir
-# Look left and up
-BB.Actuator.set_position(PanTiltRobot, :pan, -0.785)   # -45°
-BB.Actuator.set_position(PanTiltRobot, :tilt, 0.524)   # +30°
+{:ok, cmd} = PanTiltRobot.arm()
+{:ok, :armed, _} = BB.Command.await(cmd)
+
+# Look left and up — these name the actuators, not the joints
+BB.Actuator.set_position(PanTiltRobot, :pan_servo, -0.785)    # -45°
+BB.Actuator.set_position(PanTiltRobot, :tilt_servo, 0.524)    # +30°
 ```
 
 ## Next Steps
