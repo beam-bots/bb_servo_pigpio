@@ -180,21 +180,11 @@ defmodule BB.Servo.Pigpio.Actuator do
   defp validate_motor_profile(_profile, _joint_name), do: :ok
 
   @impl BB.Actuator
-  def handle_info({:bb, _path, %Message{payload: %Command.Position{} = cmd}}, state) do
-    {:noreply, state} = do_set_position(cmd.position, cmd.command_id, state)
-    {:noreply, state}
-  end
-
-  @impl BB.Actuator
-  def handle_cast({:command, %Message{payload: %Command.Position{} = cmd}}, state) do
+  def handle_command(%Message{payload: %Command.Position{} = cmd}, state) do
     do_set_position(cmd.position, cmd.command_id, state)
   end
 
-  @impl BB.Actuator
-  def handle_call({:command, %Message{payload: %Command.Position{} = cmd}}, _from, state) do
-    {:noreply, new_state} = do_set_position(cmd.position, cmd.command_id, state)
-    {:reply, {:ok, :accepted}, new_state}
-  end
+  def handle_command(%Message{}, state), do: {:noreply, state}
 
   defp do_set_position(motor_angle, command_id, state) when is_integer(motor_angle),
     do: do_set_position(motor_angle * 1.0, command_id, state)
