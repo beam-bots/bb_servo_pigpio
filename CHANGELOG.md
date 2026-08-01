@@ -11,6 +11,13 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.7.0](https://github.com/beam-bots/bb_servo_pigpio/compare/v0.6.0...v0.7.0) (2026-08-01)
+### Breaking Changes:
+
+* migrate to `BB.Actuator.handle_command/2` (#81) by James Harton
+
+
+
 ## [v0.6.0](https://github.com/beam-bots/bb_servo_pigpio/compare/v0.5.2...v0.6.0) (2026-05-21)
 
 
