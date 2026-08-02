@@ -37,7 +37,7 @@ end
 ## Requirements
 
 - Raspberry Pi with pigpio daemon running (`sudo pigpiod`)
-- BB framework (`~> 0.18`)
+- BB framework (`~> 0.25`)
 
 ## Usage
 

@@ -179,6 +179,12 @@ defmodule BB.Servo.Pigpio.Actuator do
 
   defp validate_motor_profile(_profile, _joint_name), do: :ok
 
+  # This driver implements position commands, and stops by cutting the pulse train. Declaring that here means anything
+  # else is refused by the framework with a structured error, rather than
+  # reaching the catch-all below and being silently dropped.
+  @impl BB.Actuator
+  def command_payloads(_opts), do: [Command.Position, Command.Stop]
+
   @impl BB.Actuator
   def handle_command(%Message{payload: %Command.Position{} = cmd}, state) do
     do_set_position(cmd.position, cmd.command_id, state)
