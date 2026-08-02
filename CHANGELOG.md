@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.8.0](https://github.com/beam-bots/bb_servo_pigpio/compare/v0.7.1...v0.8.0) (2026-08-02)
+
+
+
+
+### Features:
+
+* declare the command payloads this driver implements by James Harton
+
 ## [v0.7.1](https://github.com/beam-bots/bb_servo_pigpio/compare/v0.7.0...v0.7.1) (2026-08-02)
 
 
