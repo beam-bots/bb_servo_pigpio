@@ -151,7 +151,7 @@ You can also query the robot's state directly:
 ```elixir
 # Get current joint positions
 # Positions are keyed by joint name
-%{pan: pan_position} = BB.Robot.Runtime.positions(MyRobot)
+%{pan: pan_position} = BB.Robot.Runtime.configurations(MyRobot)
 ```
 
 ## Example: Position Logger
