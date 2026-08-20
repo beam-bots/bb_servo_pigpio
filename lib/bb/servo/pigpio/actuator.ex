@@ -22,6 +22,16 @@ defmodule BB.Servo.Pigpio.Actuator do
      `BB.Actuator.publish_begin_motion/3` (which handles the
      motor → joint-space conversion)
 
+  ## Position feedback
+
+  An RC servo has no return path, so this driver declares no
+  `c:BB.Actuator.capabilities/1` - it writes PWM and reads nothing. Pair it with
+  `BB.Sensor.OpenLoopPositionEstimator`, which turns the `BeginMotion` message
+  published above into `BB.Message.Sensor.JointState` - the only thing
+  `BB.Robot.State` is written from. Leave it out and the joint reads as parked at
+  its initial position however far the servo travels; `BB.Dsl` warns at compile
+  time when it finds one.
+
   ## Safety
 
   This actuator implements the `BB.Safety` behaviour. When the robot is disarmed

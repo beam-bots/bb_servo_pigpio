@@ -14,7 +14,10 @@ defmodule BB.Servo.Pigpio do
   - `BB.Servo.Pigpio.Actuator` - Controls servo position via PWM
 
   Position feedback is provided by `BB.Sensor.OpenLoopPositionEstimator` from BB
-  core, paired with the actuator in the joint definition.
+  core, paired with the actuator in the joint definition. It isn't optional: the
+  hardware reports nothing back, and `BB.Robot.State` is written from
+  `BB.Message.Sensor.JointState` messages and from nothing else, so the estimator
+  is the only thing that can say where a servo joint is.
 
   ## Requirements
 
@@ -55,5 +58,11 @@ defmodule BB.Servo.Pigpio do
   Position feedback comes from `BB.Sensor.OpenLoopPositionEstimator` (BB core),
   not this library. It subscribes to the actuator's `BeginMotion` messages,
   interpolates the joint position during movement, and publishes `JointState`.
+
+  Those `JointState` messages are what `BB.Robot.State` is built from, so a joint
+  without an estimator stays at its initial configuration forever and anything
+  reading joint positions - forward kinematics, the URDF visualisers, inverse
+  kinematics - works from a robot that never moved. `BB.Dsl` warns at compile time
+  about a joint nothing reports on.
   """
 end

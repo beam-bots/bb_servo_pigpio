@@ -27,6 +27,16 @@ file covers only what's specific to this driver.
    (`sudo pigpiod`), and `disarm/1` cuts the PWM output (pulse width `0`). Under
    simulation the framework swaps in `BB.Sim.Actuator`, so no Pi is required to
    run the robot in sim.
+4. **Position feedback is open-loop, and not optional.** An RC servo reports
+   nothing back and this driver declares no `capabilities/1`, so pair every
+   actuator with core's `BB.Sensor.OpenLoopPositionEstimator`, which interpolates
+   position from the `BeginMotion` message the actuator publishes and reports it
+   as `BB.Message.Sensor.JointState`. `BB.Robot.State` is written from those
+   messages and from nothing else — commanding a joint doesn't move it in state —
+   so a joint without an estimator stays at its initial configuration and every
+   consumer of joint positions (forward kinematics, the URDF visualisers, IK,
+   which seeds each solve from the current configuration) works from a robot that
+   never moved. BB warns at compile time when it finds one.
 
 ## Wiring it in
 
@@ -55,9 +65,16 @@ and hands the driver motor-space values:
 
 ```elixir
 # Either the actuator's unique name or its full path — `[:base, :shoulder, :servo]`
-# here. A partial path matches no subscriber and the command goes nowhere.
-BB.Actuator.set_position(MyRobot.Robot, :servo, 0.5)
+# here. Published for observers and delivered by a call, so a refusal reaches you.
+:ok = BB.Actuator.set_position(MyRobot.Robot, :servo, 0.5)
+
+# Cast, for control paths that can't afford the round trip. Always returns `:ok`.
+BB.Actuator.set_position(MyRobot.Robot, :servo, 0.5, delivery: :direct)
 ```
+
+A partial path still reaches the servo — only the last element addresses the
+process — but publishes on a topic nothing is subscribed to, so observers silently
+miss the command. Use a name or the whole path.
 
 ## Options
 
@@ -84,6 +101,9 @@ match the datasheet, not to change the joint's range.
 - **Don't skip `pigpiod` or arming.** `init/1` opens the pin through the daemon,
   so it must be running first; and a disarmed robot ignores motion commands —
   arm before you expect the servo to move.
+- **Don't treat the estimator as optional.** Without it the joint never appears
+  to move, whatever the servo does, and anything reading joint positions is
+  reading the initial configuration.
 
 ## Further reading
 

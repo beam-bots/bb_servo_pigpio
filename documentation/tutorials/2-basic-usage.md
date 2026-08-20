@@ -49,6 +49,9 @@ defmodule MyRobot do
         # Attach the servo actuator
         actuator :servo, {BB.Servo.Pigpio.Actuator, pin: 17}
 
+        # The servo reports nothing back, so estimate where it is
+        sensor :feedback, {BB.Sensor.OpenLoopPositionEstimator, actuator: :servo}
+
         link :head do
           # Child links go here
         end
@@ -57,6 +60,14 @@ defmodule MyRobot do
   end
 end
 ```
+
+The `sensor` entry is the one part that isn't about hardware. `BB.Robot.State` is
+written from `BB.Message.Sensor.JointState` messages and from nothing else, and an
+RC servo has no return path, so without
+`BB.Sensor.OpenLoopPositionEstimator` the joint reads as parked at its initial
+position however far the servo travels. BB warns at compile time about a joint
+nothing reports on.
+[Position Feedback](3-position-feedback.md) covers how the estimate is produced.
 
 ## Understanding the Configuration
 
@@ -139,18 +150,37 @@ unique name, as below, or by its full path through the topology
 
 ```elixir
 # Move to centre (0 degrees)
-BB.Actuator.set_position(MyRobot, :servo, 0.0)
+:ok = BB.Actuator.set_position(MyRobot, :servo, 0.0)
 
 # Move to -45 degrees (in radians)
-BB.Actuator.set_position(MyRobot, :servo, -0.785)
+:ok = BB.Actuator.set_position(MyRobot, :servo, -0.785)
 
 # Using the unit sigil for degrees
 import BB.Unit
-BB.Actuator.set_position(MyRobot, :servo, ~u(-45 degree) |> BB.Robot.Units.to_radians())
+:ok = BB.Actuator.set_position(MyRobot, :servo, ~u(-45 degree) |> BB.Robot.Units.to_radians())
 ```
 
 > **Note:** BB uses radians internally. Convert degrees to radians when sending
 > commands, or use the unit conversion functions.
+
+`set_position/4` publishes the command for observers and waits for the actuator
+to take it, so it answers `:ok` or `{:error, reason}` — a refusal is something
+you find out about rather than assume away:
+
+```elixir
+case BB.Actuator.set_position(MyRobot, :servo, -0.785) do
+  :ok -> :moving
+  {:error, reason} -> Logger.error(Exception.message(reason))
+end
+```
+
+For a control path that can't afford the round trip, `delivery: :direct` casts to
+the actuator and publishes nothing. It always returns `:ok`, so a refusal reaches
+only the log and telemetry:
+
+```elixir
+BB.Actuator.set_position(MyRobot, :servo, -0.785, delivery: :direct)
+```
 
 ## Position Clamping
 
@@ -206,9 +236,10 @@ defmodule PanTiltRobot do
         limit lower: ~u(-90 degree), upper: ~u(90 degree),
               velocity: ~u(90 degree_per_second), effort: ~u(1 newton_meter)
 
-        # Actuator names are unique across the whole robot, so each servo needs
-        # its own name — not `:servo` twice.
+        # Component names are unique across the whole robot, so each servo and
+        # estimator needs its own name — not `:servo` twice.
         actuator :pan_servo, {BB.Servo.Pigpio.Actuator, pin: 17}
+        sensor :pan_feedback, {BB.Sensor.OpenLoopPositionEstimator, actuator: :pan_servo}
 
         link :pan_platform do
           joint :tilt do
@@ -218,6 +249,7 @@ defmodule PanTiltRobot do
                   velocity: ~u(60 degree_per_second), effort: ~u(1 newton_meter)
 
             actuator :tilt_servo, {BB.Servo.Pigpio.Actuator, pin: 18}
+            sensor :tilt_feedback, {BB.Sensor.OpenLoopPositionEstimator, actuator: :tilt_servo}
 
             link :camera_mount do
               # Camera attached here
@@ -237,8 +269,8 @@ Command both servos:
 {:ok, :armed, _} = BB.Command.await(cmd)
 
 # Look left and up — these name the actuators, not the joints
-BB.Actuator.set_position(PanTiltRobot, :pan_servo, -0.785)    # -45°
-BB.Actuator.set_position(PanTiltRobot, :tilt_servo, 0.524)    # +30°
+:ok = BB.Actuator.set_position(PanTiltRobot, :pan_servo, -0.785)    # -45°
+:ok = BB.Actuator.set_position(PanTiltRobot, :tilt_servo, 0.524)    # +30°
 ```
 
 ## Next Steps

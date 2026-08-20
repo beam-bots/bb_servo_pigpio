@@ -10,6 +10,15 @@ RC servos don't provide position feedback, but `BB.Sensor.OpenLoopPositionEstima
 (from BB core) can estimate position based on commanded targets and timing. This
 tutorial shows you how to set up and use position feedback.
 
+The estimator isn't an extra you add once everything else works. `BB.Robot.State`
+is written from `BB.Message.Sensor.JointState` messages and from nothing else, so
+until something publishes them, a joint reads as parked at its initial position
+no matter how far the servo has actually travelled — and forward kinematics, the
+URDF visualisers and inverse kinematics all work from that. This driver reads
+nothing back from the hardware, so on a servo joint the estimator is the only
+thing that can publish those messages. BB warns at compile time about a joint
+nothing reports on.
+
 ## Prerequisites
 
 - Completed [Basic Usage](2-basic-usage.md)
@@ -55,6 +64,7 @@ end
 ```
 
 The sensor requires the `actuator` option to know which actuator to subscribe to.
+Declaring it is also what silences the compile-time warning for this joint.
 
 ## How Position Feedback Works
 
@@ -190,7 +200,7 @@ Start the logger:
 {:ok, :armed, _} = BB.Command.await(cmd)
 
 # Move the servo and watch the logs
-BB.Actuator.set_position(MyRobot, :servo, 0.785)
+:ok = BB.Actuator.set_position(MyRobot, :servo, 0.785)
 # Output:
 # [2025-01-15 10:30:00.000000Z] Pan: 9.0°
 # [2025-01-15 10:30:00.020000Z] Pan: 18.0°
@@ -209,11 +219,9 @@ defmodule ServoHelper do
     # Subscribe to sensor updates
     {:ok, _} = BB.subscribe(robot, [:sensor, :base, :pan, :feedback])
 
-    # Send the command
-    BB.Actuator.set_position(robot, actuator, target)
-
-    # Wait for position to match target
-    wait_for_position(target, timeout)
+    with :ok <- BB.Actuator.set_position(robot, actuator, target) do
+      wait_for_position(target, timeout)
+    end
   end
 
   defp wait_for_position(target, timeout) do
@@ -242,7 +250,9 @@ Remember that this is **estimated** position, not actual position:
 
 For applications requiring precise position feedback, consider adding a physical
 sensor (potentiometer, encoder) to your servo or using a servo with built-in
-feedback.
+feedback. A driver for hardware that really does read position back declares
+`c:BB.Actuator.capabilities/1` and publishes `JointState` itself; swapping to one
+of those is the one case where you drop the estimator rather than repointing it.
 
 ## Next Steps
 
