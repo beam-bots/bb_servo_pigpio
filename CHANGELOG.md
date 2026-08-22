@@ -11,6 +11,13 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.9.0](https://github.com/beam-bots/bb_servo_pigpio/compare/v0.8.0...v0.9.0) (2026-08-22)
+### Breaking Changes:
+
+* follow `bb`'s synchronous `BB.Actuator.set_position/4` (#97) by James Harton
+
+
+
 ## [v0.8.0](https://github.com/beam-bots/bb_servo_pigpio/compare/v0.7.1...v0.8.0) (2026-08-02)
 
 
