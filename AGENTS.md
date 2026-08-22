@@ -44,17 +44,22 @@ mix docs
 - Maps joint position range to PWM pulse width range (default 500-2500 microseconds)
 - Publishes `BB.Message.Actuator.BeginMotion` messages after each command
 - Accepts commands sent via:
-  - `BB.Actuator.set_position/4` (pubsub)
-  - `BB.Actuator.set_position!/4` (direct)
-  - `BB.Actuator.set_position_sync/5` (synchronous)
+  - `BB.Actuator.set_position/4` (published for observers, delivered by a call, returns `:ok` or `{:error, reason}`)
+  - `BB.Actuator.set_position/4` with `delivery: :direct` (cast, publishes nothing, always returns `:ok`)
 
-  All three arrive at `handle_command/2`; `BB.Actuator.Server` checks arm state and applies
+  Both arrive at `handle_command/2`; `BB.Actuator.Server` checks arm state and applies
   the joint's transmission before the driver sees them.
+- Declares no `c:BB.Actuator.capabilities/1` - PWM out, nothing back. The
+  default `[]` is the honest answer, and a joint driven by it needs
+  `BB.Sensor.OpenLoopPositionEstimator` for anything to know where it is.
 
 ### Integration Pattern
 
 The actuator is designed to be used within a BB robot joint definition, paired with the
-`BB.Sensor.OpenLoopPositionEstimator` from BB core for position feedback:
+`BB.Sensor.OpenLoopPositionEstimator` from BB core for position feedback. The
+estimator is required rather than optional: `BB.Robot.State` is written from
+`BB.Message.Sensor.JointState` messages and from nothing else, so without it the
+joint stays at its initial configuration and BB warns at compile time:
 
 ```elixir
 joint :shoulder do
@@ -77,15 +82,13 @@ Send commands using the `BB.Actuator` module:
 {:ok, cmd} = MyRobot.arm()
 {:ok, :armed, _} = BB.Command.await(cmd)
 
-# Pubsub delivery (for orchestration/logging). Takes a name or a full path.
-BB.Actuator.set_position(MyRobot, :servo, 0.5)
-BB.Actuator.set_position(MyRobot, [:base, :shoulder, :servo], 0.5)
+# Published for observers and delivered by a call. Takes a name or a full path.
+:ok = BB.Actuator.set_position(MyRobot, :servo, 0.5)
+:ok = BB.Actuator.set_position(MyRobot, [:base, :shoulder, :servo], 0.5)
 
-# Direct delivery (fire-and-forget, lower latency)
-BB.Actuator.set_position!(MyRobot, :servo, 0.5)
-
-# Synchronous delivery (with acknowledgement)
-{:ok, :accepted} = BB.Actuator.set_position_sync(MyRobot, :servo, 0.5)
+# Direct delivery (fire-and-forget, lower latency). Always returns `:ok`, so a
+# refusal reaches only the log and telemetry.
+BB.Actuator.set_position(MyRobot, :servo, 0.5, delivery: :direct)
 ```
 
 ### Key Dependencies

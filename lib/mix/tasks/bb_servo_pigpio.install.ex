@@ -52,6 +52,11 @@ if Code.ensure_loaded?(Igniter) do
             sensor :feedback, {BB.Sensor.OpenLoopPositionEstimator, actuator: :servo}
           end
 
+      The estimator is part of the wiring, not an extra: `BB.Robot.State` is
+      written from `BB.Message.Sensor.JointState` messages and from nothing else,
+      and an RC servo reports nothing back, so a joint without one reads as parked
+      at its initial position however far the servo travels.
+
       Make sure pigpiod is running on the target host: `sudo pigpiod`.
       """
     end

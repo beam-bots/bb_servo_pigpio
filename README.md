@@ -81,7 +81,9 @@ end
 ```
 
 The actuator automatically derives its configuration from the joint limits - no
-need to specify servo rotation range or speed separately.
+need to specify servo rotation range or speed separately. The `sensor` entry is
+not optional decoration: an RC servo reports nothing back, and without the
+estimator nothing tells `BB.Robot.State` where the joint is.
 
 ## Sending Commands
 
@@ -93,47 +95,42 @@ commands to a disarmed robot are refused before they reach the driver:
 {:ok, :armed, _} = BB.Command.await(cmd)
 ```
 
-There are three ways to deliver a command. They differ in transport, not in
-what the driver sees: all three arrive at the actuator's `handle_command/2`,
-and none can skip the framework's arm check or its joint-to-motor transmission.
+`BB.Actuator.set_position/4` has two deliveries, chosen with `:delivery`. They
+differ in transport, not in what the driver sees: both arrive at the actuator's
+`handle_command/2`, and neither can skip the framework's arm check or its
+joint-to-motor transmission.
 
 Every function takes either the actuator's unique name or its full path
 through the topology.
 
-### Pubsub Delivery (for orchestration)
+### Default Delivery (published and acknowledged)
 
-Commands are published via pubsub, enabling logging, replay, and multi-subscriber
-patterns:
+The command is published to `[:actuator | path]`, which is what enables logging,
+replay and multi-subscriber patterns, and delivered to the actuator by a call, so
+the caller learns whether the joint is actually moving:
 
 ```elixir
-# Send position command via pubsub
-BB.Actuator.set_position(MyRobot, [:base, :shoulder, :servo], 0.5)
+case BB.Actuator.set_position(MyRobot, [:base, :shoulder, :servo], 0.5) do
+  :ok -> :moving
+  {:error, reason} -> handle_error(reason)
+end
 
 # With options
-BB.Actuator.set_position(MyRobot, [:base, :shoulder, :servo], 0.5,
-  command_id: make_ref()
-)
+:ok = BB.Actuator.set_position(MyRobot, [:base, :shoulder, :servo], 0.5,
+        command_id: make_ref()
+      )
 ```
 
 ### Direct Delivery (for time-critical control)
 
-Commands bypass pubsub for lower latency. Use when responsiveness matters more
-than observability:
+Casts to the actuator and publishes nothing, for when responsiveness matters more
+than observability. It **always returns `:ok`**, so a refusal reaches the log and
+`[:bb, :actuator, :rejected]` telemetry and nowhere else — don't write an error
+branch that can never run:
 
 ```elixir
 # Fire-and-forget
-BB.Actuator.set_position!(MyRobot, :servo, 0.5)
-```
-
-### Synchronous Delivery (with acknowledgement)
-
-Wait for the actuator to acknowledge the command:
-
-```elixir
-case BB.Actuator.set_position_sync(MyRobot, :servo, 0.5) do
-  {:ok, :accepted} -> :ok
-  {:error, reason} -> handle_error(reason)
-end
+BB.Actuator.set_position(MyRobot, :servo, 0.5, delivery: :direct)
 ```
 
 ## Components
@@ -172,12 +169,19 @@ end
 ### Sensor
 
 Use `BB.Sensor.OpenLoopPositionEstimator` from the BB core library for position
-feedback. It subscribes to actuator `BeginMotion` messages and interpolates
-position during movement.
+feedback. It subscribes to actuator `BeginMotion` messages, interpolates position
+during movement, and publishes it as `BB.Message.Sensor.JointState`.
 
 ```elixir
 sensor :feedback, {BB.Sensor.OpenLoopPositionEstimator, actuator: :servo}
 ```
+
+Give every servo-driven joint one. `BB.Robot.State` is written from `JointState`
+messages and from nothing else — commanding a joint doesn't move it in state — so
+a joint without an estimator stays at its initial configuration forever, and
+forward kinematics, the URDF visualisers and inverse kinematics all keep working
+from a robot that never moved. BB warns at compile time about a joint nothing
+reports on.
 
 ## How It Works
 
@@ -205,8 +209,11 @@ times:
 1. Actuator sends command and publishes `BeginMotion` with expected arrival time
 2. Sensor receives `BeginMotion` and interpolates position during movement
 3. After arrival time, sensor reports the target position
+4. Sensor publishes the estimate as `JointState`, which is what writes
+   `BB.Robot.State`
 
-This provides realistic position feedback for trajectory planning and monitoring.
+That last step is why the estimator is part of the wiring rather than an extra:
+it is the only thing that tells the rest of the framework where an RC servo is.
 
 ### Motion Lifecycle
 
